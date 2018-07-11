@@ -2,6 +2,11 @@
 Changelog for package robot_state_publisher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.13.7 (2018-07-11)
+-------------------
+* addition of service so as to modify a urdf model.
+* Contributors: t-ogata
+
 1.13.6 (2018-04-05)
 -------------------
 * added warning when joint is found in joint message but not in the urdf (`#83 <https://github.com/ros/robot_state_publisher/issues/83>`_)

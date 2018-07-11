@@ -41,6 +41,7 @@
 #include <kdl/tree.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
+#include <std_srvs/Empty.h>
 
 #include "robot_state_publisher/robot_state_publisher.h"
 
@@ -67,16 +68,27 @@ protected:
   virtual void callbackJointState(const JointStateConstPtr& state);
   virtual void callbackFixedJoint(const ros::TimerEvent& e);
 
+  /**
+   * @brief  Update of URDF model
+   * @param req The service request 
+   * @param resp The service response
+   * @return True if the service call succeeds, false otherwise
+   */
+  bool UpdateModel(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp);
+
   std::string tf_prefix_;
   Duration publish_interval_;
-  robot_state_publisher::RobotStatePublisher state_publisher_;
+  //robot_state_publisher::RobotStatePublisher state_publisher_;
+  robot_state_publisher::RobotStatePublisher* state_publisher_;
   Subscriber joint_state_sub_;
   ros::Timer timer_;
   ros::Time last_callback_time_;
   std::map<std::string, ros::Time> last_publish_time_;
-  MimicMap mimic_;
+  //MimicMap mimic_;
+  MimicMap* mimic_;
   bool use_tf_static_;
   bool ignore_timestamp_;
+  ros::ServiceServer model_update_srv_;
 
 };
 }

@@ -48,11 +48,14 @@ using namespace KDL;
 using namespace robot_state_publisher;
 
 JointStateListener::JointStateListener(const KDL::Tree& tree, const MimicMap& m, const urdf::Model& model)
-  : state_publisher_(tree, model), mimic_(m)
+//  : state_publisher_(tree, model), mimic_(m)
+  : state_publisher_(NULL), mimic_(NULL)
 {
   ros::NodeHandle n_tilde("~");
   ros::NodeHandle n;
 
+  state_publisher_=new robot_state_publisher::RobotStatePublisher(tree,model);
+  mimic_=new MimicMap(m);
   // set publish frequency
   double publish_freq;
   n_tilde.param("publish_frequency", publish_freq, 50.0);
@@ -77,17 +80,23 @@ JointStateListener::JointStateListener(const KDL::Tree& tree, const MimicMap& m,
   // trigger to publish fixed joints
   // if using static transform broadcaster, this will be a oneshot trigger and only run once
   timer_ = n_tilde.createTimer(publish_interval_, &JointStateListener::callbackFixedJoint, this, use_tf_static_);
+
+ model_update_srv_=n_tilde.advertiseService("update_model",&JointStateListener::UpdateModel,this);
 }
 
 
 JointStateListener::~JointStateListener()
-{}
+{
+ delete state_publisher_;
+ delete mimic_;
+}
 
 
 void JointStateListener::callbackFixedJoint(const ros::TimerEvent& e)
 {
   (void)e;
-  state_publisher_.publishFixedTransforms(tf_prefix_, use_tf_static_);
+  //state_publisher_.publishFixedTransforms(tf_prefix_, use_tf_static_);
+  state_publisher_->publishFixedTransforms(tf_prefix_, use_tf_static_);
 }
 
 void JointStateListener::callbackJointState(const JointStateConstPtr& state)
@@ -136,20 +145,51 @@ void JointStateListener::callbackJointState(const JointStateConstPtr& state)
       joint_positions.insert(make_pair(state->name[i], state->position[i]));
     }
 
-    for (MimicMap::iterator i = mimic_.begin(); i != mimic_.end(); i++) {
+    for (MimicMap::iterator i = mimic_->begin(); i != mimic_->end(); i++) {
       if(joint_positions.find(i->second->joint_name) != joint_positions.end()) {
         double pos = joint_positions[i->second->joint_name] * i->second->multiplier + i->second->offset;
         joint_positions.insert(make_pair(i->first, pos));
       }
     }
 
-    state_publisher_.publishTransforms(joint_positions, state->header.stamp, tf_prefix_);
+    //state_publisher_.publishTransforms(joint_positions, state->header.stamp, tf_prefix_);
+    state_publisher_->publishTransforms(joint_positions, state->header.stamp, tf_prefix_);
 
     // store publish time in joint map
     for (unsigned int i = 0; i<state->name.size(); i++) {
       last_publish_time_[state->name[i]] = state->header.stamp;
     }
   }
+}
+
+bool JointStateListener::UpdateModel(std_srvs::Empty::Request &req, std_srvs::Empty::Response &resp){
+
+  // gets the location of the robot description on the parameter server
+  urdf::Model model;
+  if (!model.initParam("robot_description"))
+    return -1;
+
+  KDL::Tree tree;
+  if (!kdl_parser::treeFromUrdfModel(model, tree)) {
+    ROS_ERROR("Failed to extract kdl tree from xml robot description");
+    return -1;
+  }
+
+  MimicMap mimic;
+
+  for(std::map< std::string, urdf::JointSharedPtr >::iterator i = model.joints_.begin(); i != model.joints_.end(); i++) {
+    if(i->second->mimic) {
+      mimic.insert(make_pair(i->first, i->second->mimic));
+    }
+  };
+
+ //update of model
+ //state_publisher_(tree, model), and mimic_(mimic)
+ delete state_publisher_;
+ delete mimic_;
+ state_publisher_=new robot_state_publisher::RobotStatePublisher(tree,model);
+ mimic_=new MimicMap(mimic);
+
 }
 
 // ----------------------------------
